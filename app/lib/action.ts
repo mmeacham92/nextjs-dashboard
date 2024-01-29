@@ -2,7 +2,11 @@
 
 import { z } from 'zod';
 import { sql } from '@vercel/postgres';
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 
+
+// create an object using Zod library (which will validate types for us)
 const FormSchema = z.object({
     id: z.string(),
     customerId: z.string(),
@@ -14,6 +18,7 @@ const FormSchema = z.object({
 const CreateInvoice = FormSchema.omit({ id: true, date: true });
 
 export async function createInvoice(formData: FormData) {
+    // use CreateInvoice.parse to deconstruct and validate data from FormData argument)
     const { customerId, amount, status } = CreateInvoice.parse({
         customerId: formData.get('customerId'),
         amount: formData.get('amount'),
@@ -22,10 +27,16 @@ export async function createInvoice(formData: FormData) {
     const amountInCents = amount * 100;
     const date = new Date().toISOString().split('T')[0];
 
+    console.log(customerId, amountInCents, status);
+
+    // insert data into database
     await sql`
         INSERT INTO invoices(customer_id, amount, status, date)
         VALUES (${customerId}, ${amountInCents}, ${status}, ${date})
     `;
 
-    console.log(customerId, amount, status);
+    // cause browser to fetch from database to update cache
+    revalidatePath('/dashboard/invoices');
+    // redirect back to the invoices page
+    redirect('/dashboard/invoices');
 }
